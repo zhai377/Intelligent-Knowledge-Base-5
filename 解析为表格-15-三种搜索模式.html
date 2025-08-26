@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>数据解析为表格</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #444;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background-color: #f9f9f9;
+            transition: all 0.3s ease;
+        }
+
+        .drop-zone.dragover {
+            border-color: #4A90E2;
+            background-color: #e3f2fd;
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .drop-zone .file-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #888;
+        }
+
+        .file-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+
+        .file-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 15px;
+            background-color: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .file-tag:hover {
+            background-color: #357ABD;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .file-tag.active {
+            background-color: #28a745;
+        }
+
+        .file-tag.inactive {
+            background-color: #6c757d;
+            opacity: 0.6;
+        }
+
+        .file-tag .remove-btn {
+            margin-left: 8px;
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
+        .file-tag .remove-btn:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        .file-tag .file-count {
+            margin-left: 8px;
+            background-color: rgba(255,255,255,0.2);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .row-odd {
+            background-color: #f5fcf5;
+        }
+
+        .row-even {
+            background-color: #fff5f6;
+        }
+
+        tr:hover {
+            background-color: #d5e9ff;
+        }
+
+        .col-index {
+            width: 8%;
+            text-align: center;
+        }
+
+        .index-checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .index-checkbox input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .row-selected {
+            background-color: #f4e4d4 !important;
+        }
+
+        .row-selected:hover {
+            background-color: #e8d4c0 !important;
+        }
+
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 5px 0;
+            z-index: 1000;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .copy-success {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 1001;
+            display: none;
+        }
+
+        .row-copied {
+            color: #0066cc !important;
+            font-weight: bold !important;
+            transition: all 0.3s ease;
+        }
+
+        .batch-copy-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1002;
+            background-color: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .batch-copy-btn:hover {
+            background-color: #357ABD;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .batch-copy-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #showChartButton {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        #showChartButton:hover {
+            background-color: #3e8e41;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        #chartContainer {
+            width: 90%;
+            height: 600px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffe0;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 1000;
+        }
+
+        #chart {
+            position: relative;
+            height: 700px;
+            margin-top: 20px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        #closeChart {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            background-color: #f2f2f2;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .slider-container {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            z-index: 1001;
+        }
+
+        .slider-container input {
+            margin: 5px 0;
+        }
+
+        .slider-label {
+            font-size: 14px;
+            margin-right: 5px;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            display: none;
+        }
+
+        .search-buttons {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .search-buttons button {
+            margin: 0 5px;
+            padding: 8px 16px;
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .search-buttons button:hover {
+            background-color: #e0e0e0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-buttons button.selected {
+            background-color: #614caf;
+            color: white;
+            border-color: #704382;
+        }
+
+        .col-title {
+            width: 15%;
+        }
+
+        .col-points {
+            width: 65%;
+        }
+
+        .col-filename {
+            width: 15%;
+            text-align: center;
+        }
+
+        .search-container {
+            position: sticky;
+            top: 10px;
+            z-index: 1;
+            background: #fff;
+            padding-bottom: 20px;
+        }
+
+        .search-box {
+            position: relative;
+            width: 60%;
+            margin-left: 20%;
+        }
+        
+        #searchInput {
+            width: 100%;
+            padding: 10px;
+            padding-right: 30px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        #clearBtn {
+            display: none;
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 22px;
+            color: #888;
+        }
+        #clearBtn:hover {
+            color: #333;
+        }
+
+        #rowCountContainer {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 8px 15px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1002;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #scrollToTopBtn {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+
+        #scrollToTopBtn:hover {
+            background-color: #0056b3;
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="rowCountContainer"></div>
+    <button id="scrollToTopBtn" title="回到顶部">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 15 12 9 18 15"></polyline>
+        </svg>
+    </button>
+    <button id="batchCopyBtn" class="batch-copy-btn" disabled>批量复制</button>
+    
+    <button id="showChartButton">条形图</button>
+    
+    <div id="overlay"></div>
+    <div id="chartContainer">
+        <button id="closeChart">×</button>
+        <canvas id="chart"></canvas>
+        <div class="slider-container">
+            <div>
+                <span class="slider-label">最小值:</span>
+                <span id="minRangeValue">0</span>
+                <input type="range" id="minRange" min="0" max="100" value="0">
+            </div>
+            <div>
+                <span class="slider-label">最大值:</span>
+                <span id="maxRangeValue">100</span>
+                <input type="range" id="maxRange" min="0" max="100" value="100">
+            </div>
+        </div>
+    </div>
+    
+    <div id="copySuccess" class="copy-success">复制成功！</div>
+
+    <h1>题目数据</h1>
+    
+    <div class="drop-zone" id="dropZone">
+        <p>将多个 Markdown 文件拖拽到此处</p>
+        <div class="file-info" id="fileInfo"></div>
+    </div>
+
+    <div class="file-tags" id="fileTags"></div>
+
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="输入搜索内容，逗号隔开">
+            <span id="clearBtn">&times;</span>
+        </div>
+    </div>
+
+    <div class="search-buttons">
+        <button id="partialOrMatchButton" onclick="toggleSearchMode('partialOr')">部分匹配（或）</button>
+        <button id="partialAndMatchButton" onclick="toggleSearchMode('partialAnd')">部分匹配（且）</button>
+        <button id="exactMatchButton" onclick="toggleSearchMode('exact')">精确匹配（且）</button>
+    </div>
+    
+    <table id="dataTable">
+        <thead>
+            <tr>
+                <th class="col-index">
+                    <div class="index-checkbox">
+                        <input type="checkbox" id="selectAllCheckbox">
+                        <span>序号</span>
+                    </div>
+                </th>
+                <th class="col-title">题目名</th>
+                <th class="col-points">考点列表</th>
+                <th class="col-filename">文件名</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="4" class="no-data">请拖拽 Markdown 文件到上方区域</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        let data = {};
+        let fileData = {};  
+        let activeFiles = new Set(); 
+        let fileOrder = []; 
+        let selectedRows = new Set(); 
+        let pointCounts = {}; 
+        let chartInstance = null; 
+        let searchMode = 'partialOr'; 
+        const tableBody = document.querySelector('#dataTable tbody');
+        const dropZone = document.getElementById('dropZone');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileTags = document.getElementById('fileTags');
+        const searchInput = document.getElementById('searchInput');
+        const clearBtn = document.getElementById('clearBtn');
+        const rowCountContainer = document.getElementById('rowCountContainer');
+        const copySuccess = document.getElementById('copySuccess');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const batchCopyBtn = document.getElementById('batchCopyBtn');
+        const showChartButton = document.getElementById('showChartButton');
+        const closeChart = document.getElementById('closeChart');
+        const chartContainer = document.getElementById('chartContainer');
+        const overlay = document.getElementById('overlay');
+        let buttons = {}; 
+
+        function parseMarkdown(content, filename) {
+            const lines = content.split('\n');
+            const parsedData = {};
+            let currentTitle = '';
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line.startsWith('#### ')) {
+                    currentTitle = line.substring(5).trim();
+                    parsedData[currentTitle] = {
+                        points: [],
+                        filename: filename
+                    };
+                }
+                
+                if (line.startsWith('##### （考点：）【') && currentTitle) {
+                    console.log('找到考点行:', line);
+                    
+                    const startIndex = line.indexOf('【');
+                    const endIndex = line.indexOf('】');
+                    
+                    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                        const content = line.substring(startIndex + 1, endIndex);
+                        console.log('提取的内容:', content);
+                        const points = content.split('，').map(point => point.trim());
+                        parsedData[currentTitle].points = points;
+                        console.log('解析的考点:', points); 
+                    } else {
+                        console.log('字符串匹配失败'); 
+                    }
+                }
+            }
+            
+            console.log('解析结果:', parsedData); 
+            return parsedData;
+        }
+
+        function createFileTag(filename, count) {
+            const tag = document.createElement('div');
+            tag.className = 'file-tag active';
+            tag.dataset.filename = filename;
+            
+            const filenameSpan = document.createElement('span');
+            filenameSpan.textContent = filename;
+            
+            const countSpan = document.createElement('span');
+            countSpan.className = 'file-count';
+            countSpan.textContent = count;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-btn';
+            removeBtn.innerHTML = '×';
+            removeBtn.title = '移除文件';
+            
+            tag.appendChild(filenameSpan);
+            tag.appendChild(countSpan);
+            tag.appendChild(removeBtn);
+            
+            tag.addEventListener('click', function(e) {
+                if (e.target !== removeBtn) {
+                    toggleFileActive(filename);
+                }
+            });
+            
+            removeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                removeFile(filename);
+            });
+            
+            return tag;
+        }
+
+        function toggleFileActive(filename) {
+            const tag = document.querySelector(`[data-filename="${filename}"]`);
+            if (activeFiles.has(filename)) {
+                activeFiles.delete(filename);
+                tag.classList.remove('active');
+                tag.classList.add('inactive');
+            } else {
+                activeFiles.add(filename);
+                tag.classList.remove('inactive');
+                tag.classList.add('active');
+            }
+            updateTable();
+            updateFileInfo(); 
+        }
+
+        function removeFile(filename) {
+            delete fileData[filename];
+            activeFiles.delete(filename);
+            const index = fileOrder.indexOf(filename);
+            if (index > -1) {
+                fileOrder.splice(index, 1);
+            }
+            updateFileTags();
+            updateTable();
+            updateFileInfo(); 
+        }
+
+        function updateFileTags() {
+            fileTags.innerHTML = '';
+            for (const filename of fileOrder) {
+                if (fileData[filename]) {
+                    const count = Object.keys(fileData[filename]).length;
+                    const tag = createFileTag(filename, count);
+                    if (!activeFiles.has(filename)) {
+                        tag.classList.remove('active');
+                        tag.classList.add('inactive');
+                    }
+                    fileTags.appendChild(tag);
+                }
+            }
+        }
+
+        function updateFileInfo() {
+            const totalFiles = Object.keys(fileData).length;
+            const activeFileCount = activeFiles.size;
+            
+            let totalQuestions = 0;
+            for (const filename of activeFiles) {
+                if (fileData[filename]) {
+                    totalQuestions += Object.keys(fileData[filename]).length;
+                }
+            }
+            
+            if (totalFiles === 0) {
+                fileInfo.textContent = '请拖拽 Markdown 文件到上方区域';
+            } else {
+                fileInfo.textContent = `已加载 ${totalFiles} 个文件，${activeFileCount} 个激活，共 ${totalQuestions} 道题目`;
+            }
+        }
+
+        function mergeActiveData() {
+            data = {};
+            for (const filename of fileOrder) {
+                if (activeFiles.has(filename) && fileData[filename]) {
+                    Object.assign(data, fileData[filename]);
+                }
+            }
+        }
+
+        function updateTable() {
+            mergeActiveData();
+            tableBody.innerHTML = '';
+            selectedRows.clear();
+            pointCounts = {}; 
+            
+            if (Object.keys(data).length === 0) {
+                const noDataRow = document.createElement('tr');
+                noDataRow.innerHTML = '<td colspan="4" class="no-data">请拖拽 Markdown 文件到上方区域或激活文件</td>';
+                tableBody.appendChild(noDataRow);
+                return;
+            }
+            
+            let index = 1;
+            for (const title in data) {
+                if (Object.prototype.hasOwnProperty.call(data, title)) {
+                    const keyPoints = data[title];
+                    const row = document.createElement('tr');
+                    row.dataset.title = title; 
+
+                    const cellIndex = document.createElement('td');
+                    cellIndex.className = 'col-index';
+                    
+                    const indexContent = document.createElement('div');
+                    indexContent.className = 'index-checkbox';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.dataset.index = index;
+                    
+                    const numberSpan = document.createElement('span');
+                    numberSpan.textContent = index;
+                    
+                    indexContent.appendChild(checkbox);
+                    indexContent.appendChild(numberSpan);
+                    
+                    index++; 
+                    cellIndex.appendChild(indexContent);
+                    row.appendChild(cellIndex);
+
+                    const cellTitle = document.createElement('td');
+                    cellTitle.textContent = title;
+                    row.appendChild(cellTitle);
+
+                    const cellKeyPoints = document.createElement('td');
+                    cellKeyPoints.textContent = keyPoints.points.join('，');
+                    row.appendChild(cellKeyPoints);
+
+                    const cellFilename = document.createElement('td');
+                    cellFilename.textContent = keyPoints.filename;
+                    row.appendChild(cellFilename);
+
+                    row.addEventListener('click', function(e) {
+                        if (e.target.type !== 'checkbox') {
+                            toggleRowSelection(this);
+                        }
+                    });
+
+                    checkbox.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        toggleRowSelection(row);
+                    });
+
+                    row.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        copyRowContent(row);
+                    });
+
+                    tableBody.appendChild(row);
+                    
+                    countPoints(keyPoints.points);
+                }
+            }
+            
+            updateRowCount();
+            reapplyRowColors();
+        }
+
+        function countPoints(points) {
+            const excludedPoints = [
+                '选择', '填空', '解答', 
+                '高数', '线代', '概论' 
+            ];
+            
+            points.forEach(point => {
+                if (!excludedPoints.includes(point)) {
+                    if (pointCounts[point]) {
+                        pointCounts[point]++;
+                    } else {
+                        pointCounts[point] = 1;
+                    }
+                }
+            });
+        }
+
+        function updateRowCount() {
+            const totalRows = tableBody.rows.length;
+            const visibleRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => row.style.display !== 'none').length;
+            rowCountContainer.textContent = `显示: ${visibleRows} / ${totalRows}`;
+        }
+
+        function toggleRowSelection(row) {
+            const title = row.dataset.title;
+            if (selectedRows.has(title)) {
+                selectedRows.delete(title);
+                row.classList.remove('row-selected');
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = false;
+            } else {
+                selectedRows.add(title);
+                row.classList.add('row-selected');
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = true;
+            }
+            updateSelectAllCheckbox();
+        }
+
+        function updateSelectAllCheckbox() {
+            const visibleRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => 
+                row.style.display !== 'none' && row.dataset.title
+            );
+            const selectedVisibleRows = visibleRows.filter(row => 
+                selectedRows.has(row.dataset.title)
+            );
+            
+            if (visibleRows.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedVisibleRows.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedVisibleRows.length === visibleRows.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+            
+            updateBatchCopyButton();
+        }
+
+        function updateBatchCopyButton() {
+            if (selectedRows.size > 0) {
+                batchCopyBtn.disabled = false;
+                batchCopyBtn.textContent = `批量复制 (${selectedRows.size})`;
+            } else {
+                batchCopyBtn.disabled = true;
+                batchCopyBtn.textContent = '批量复制';
+            }
+        }
+
+        function toggleSelectAll() {
+            const visibleRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => 
+                row.style.display !== 'none' && row.dataset.title
+            );
+            
+            if (selectAllCheckbox.checked) {
+                visibleRows.forEach(row => {
+                    const title = row.dataset.title;
+                    if (!selectedRows.has(title)) {
+                        selectedRows.add(title);
+                        row.classList.add('row-selected');
+                        const checkbox = row.querySelector('input[type="checkbox"]');
+                        if (checkbox) checkbox.checked = true;
+                    }
+                });
+            } else {
+                visibleRows.forEach(row => {
+                    const title = row.dataset.title;
+                    selectedRows.delete(title);
+                    row.classList.remove('row-selected');
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    if (checkbox) checkbox.checked = false;
+                });
+            }
+            
+            updateBatchCopyButton();
+        }
+
+        function reapplyRowColors() {
+            const allRows = tableBody.querySelectorAll('tr');
+            allRows.forEach(row => {
+                row.classList.remove('row-odd', 'row-even');
+            });
+
+            const visibleRows = Array.from(allRows).filter(row => row.style.display !== 'none');
+            visibleRows.forEach((row, index) => {
+                if (!selectedRows.has(row.dataset.title)) {
+                    if (index % 2 === 0) {
+                        row.classList.add('row-odd');
+                    } else {
+                        row.classList.add('row-even');
+                    }
+                }
+            });
+            updateSelectAllCheckbox();
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                let processedFiles = 0;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.type === 'text/markdown' || file.name.endsWith('.md')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const content = e.target.result;
+                            console.log('文件内容前100字符:', content.substring(0, 100));
+                            console.log('文件总长度:', content.length);
+                            const filename = file.name.replace(/\.md$/i, '');
+                            
+                            fileData[filename] = parseMarkdown(content, filename);
+                            activeFiles.add(filename); 
+                            if (!fileOrder.includes(filename)) {
+                                fileOrder.push(filename);
+                            }
+                            
+                            processedFiles++;
+                            
+                            if (processedFiles === files.length) {
+                                updateFileTags();
+                                updateTable();
+                                updateFileInfo(); 
+                            }
+                        };
+                        reader.readAsText(file);
+                    } else {
+                        processedFiles++;
+                        if (processedFiles === files.length) {
+                            updateFileTags();
+                            updateTable();
+                            updateFileInfo(); 
+                        }
+                    }
+                }
+            }
+        });
+
+        searchInput.addEventListener('input', function () {
+            const queryValue = this.value.trim();
+            clearBtn.style.display = queryValue ? 'block' : 'none';
+
+            const queries = queryValue.split(/[,，]/).map(q => q.trim()).filter(q => q);
+            
+            if (queries.length === 0) {
+                const rows = tableBody.querySelectorAll('tr');
+                rows.forEach((row, index) => {
+                    row.style.display = '';
+                    const title = row.dataset.title;
+                    if (data[title]) {
+                        const keyPointsCell = row.cells[2];
+                        keyPointsCell.innerHTML = data[title].points.join('，');
+                        const numberSpan = row.querySelector('.index-checkbox span');
+                        if (numberSpan) {
+                            numberSpan.textContent = index + 1;
+                        }
+                    }
+                });
+                updateRowCount();
+                reapplyRowColors();
+                return;
+            }
+
+            const matchedRows = [];
+            const rows = tableBody.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const title = row.dataset.title;
+                if (!data[title]) return;
+                
+                const keyPointsString = data[title].points.join('，');
+                const keyPointsStringLower = keyPointsString.toLowerCase();
+                const titleLower = title.toLowerCase();
+                const fileNameLower = row.cells[3].textContent.toLowerCase();
+
+                let isMatch = false;
+                let exactMatchCount = 0;
+                let partialMatchCount = 0;
+                let titleExactMatch = false;
+                let fileNameExactMatch = false;
+                let titleMatch = false;
+                let fileNameMatch = false;
+                
+                if (searchMode === 'exact') {
+                    isMatch = queries.every(query => 
+                        data[title].points.some(point => point === query)
+                    );
+                    if (isMatch) {
+                        exactMatchCount = queries.filter(query => 
+                            data[title].points.includes(query)
+                        ).length;
+                    }
+                } else if (searchMode === 'partialAnd') {
+                    isMatch = queries.every(query => 
+                        data[title].points.some(point => point.includes(query))
+                    );
+                    if (isMatch) {
+                        partialMatchCount = queries.filter(query => 
+                            data[title].points.some(point => point.includes(query))
+                        ).length;
+                    }
+                } else {
+                    titleMatch = queries.some(query => titleLower.includes(query.toLowerCase()));
+                    fileNameMatch = queries.some(query => fileNameLower.includes(query.toLowerCase()));
+                    const topicMatch = queries.some(query => 
+                        data[title].points.some(point => point.includes(query))
+                    );
+                    isMatch = topicMatch || titleMatch || fileNameMatch;
+                    
+                    if (isMatch) {
+                        exactMatchCount = queries.filter(query => 
+                            data[title].points.includes(query)
+                        ).length;
+                        partialMatchCount = queries.filter(query => 
+                            data[title].points.some(point => point.includes(query) && !data[title].points.includes(query))
+                        ).length;
+                    }
+                }
+
+                titleExactMatch = queries.includes(title);
+                fileNameExactMatch = queries.includes(row.cells[3].textContent);
+
+                if (isMatch) {
+                    matchedRows.push({
+                        row: row,
+                        title: title,
+                        exactMatchCount: exactMatchCount,
+                        partialMatchCount: partialMatchCount,
+                        titleExactMatch: titleExactMatch,
+                        fileNameExactMatch: fileNameExactMatch,
+                        titleMatch: titleMatch,
+                        fileNameMatch: fileNameMatch,
+                        queries: queries
+                    });
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            matchedRows.sort((a, b) => {
+                if (a.exactMatchCount !== b.exactMatchCount) return b.exactMatchCount - a.exactMatchCount;
+                if (a.partialMatchCount !== b.partialMatchCount) return b.partialMatchCount - a.partialMatchCount;
+                if (a.titleExactMatch !== b.titleExactMatch) return a.titleExactMatch ? -1 : 1;
+                if (a.fileNameExactMatch !== b.fileNameExactMatch) return a.fileNameExactMatch ? -1 : 1;
+                if (a.titleMatch !== b.titleMatch) return a.titleMatch ? -1 : 1;
+                if (a.fileNameMatch !== b.fileNameMatch) return a.fileNameMatch ? -1 : 1;
+                return 0;
+            });
+
+            matchedRows.forEach((item, index) => {
+                const row = item.row;
+                row.style.display = '';
+                
+                const numberSpan = row.querySelector('.index-checkbox span');
+                if (numberSpan) {
+                    numberSpan.textContent = index + 1;
+                }
+
+                const originalPoints = data[item.title].points;
+                const searchRegex = new RegExp(item.queries.map(q => escapeRegExp(q)).join('|'), 'gi');
+
+                const orderedMatchedPoints = [];
+                const addedPoints = new Set();
+
+                item.queries.forEach(query => {
+                    originalPoints.forEach(point => {
+                        const isMatchPoint = (searchMode === 'exact')
+                            ? (point === query)
+                            : point.toLowerCase().includes(query.toLowerCase());
+                        if (isMatchPoint && !addedPoints.has(point)) {
+                            orderedMatchedPoints.push(point);
+                            addedPoints.add(point);
+                        }
+                    });
+                });
+
+                const unmatchedPoints = originalPoints.filter(point => !addedPoints.has(point));
+                const reorderedPoints = [...orderedMatchedPoints, ...unmatchedPoints];
+
+                if (searchMode === 'exact') {
+                    const highlightedPoints = reorderedPoints.map(p =>
+                        item.queries.includes(p)
+                            ? `<strong style="color: red;">${p}</strong>`
+                            : p
+                    );
+                    row.cells[2].innerHTML = highlightedPoints.join('，');
+                } else {
+                    const reorderedKeyPointsString = reorderedPoints.join('，');
+                    const highlightedText = reorderedKeyPointsString.replace(searchRegex, match => `<strong style="color: red;">${match}</strong>`);
+                    row.cells[2].innerHTML = highlightedText;
+                }
+            });
+
+            updateRowCount();
+            reapplyRowColors();
+        });
+
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+
+        window.onscroll = function() {
+            if (document.body.scrollTop > 100 || document.documentElement.scrollTop > 100) {
+                scrollToTopBtn.style.display = "block";
+            } else {
+                scrollToTopBtn.style.display = "none";
+            }
+        };
+
+        scrollToTopBtn.addEventListener('click', function() {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        });
+
+        function copyRowContent(row) {
+            const title = row.dataset.title;
+            const filename = row.cells[3].textContent;
+            
+            const obsidianLink = `![[${filename}#${title}|${title}]]`;
+            
+            navigator.clipboard.writeText(obsidianLink).then(() => {
+                showCopyVisualFeedback(row);
+            }).catch(err => {
+                const textArea = document.createElement('textarea');
+                textArea.value = obsidianLink;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showCopyVisualFeedback(row);
+            });
+        }
+
+        function showCopyVisualFeedback(row) {
+            row.classList.add('row-copied');
+            
+            setTimeout(() => {
+                row.classList.remove('row-copied');
+            }, 3000);
+        }
+
+        function batchCopySelectedRows() {
+            if (selectedRows.size === 0) return;
+            
+            const selectedTitles = Array.from(selectedRows);
+            const copyContent = selectedTitles.map(title => {
+                for (const filename in fileData) {
+                    if (fileData[filename][title]) {
+                        return `![[${filename}#${title}|${title}]]`;
+                    }
+                }
+                return null;
+            }).filter(item => item !== null).join('\n\n');
+            
+            navigator.clipboard.writeText(copyContent).then(() => {
+                showBatchCopyVisualFeedback();
+            }).catch(err => {
+                const textArea = document.createElement('textarea');
+                textArea.value = copyContent;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showBatchCopyVisualFeedback();
+            });
+        }
+
+        function showBatchCopyVisualFeedback() {
+            const selectedVisibleRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => 
+                selectedRows.has(row.dataset.title)
+            );
+            
+            selectedVisibleRows.forEach(row => {
+                row.classList.add('row-copied');
+            });
+            
+            setTimeout(() => {
+                selectedVisibleRows.forEach(row => {
+                    row.classList.remove('row-copied');
+                });
+            }, 3000);
+        }
+
+        selectAllCheckbox.addEventListener('change', function() {
+            toggleSelectAll();
+        });
+
+        batchCopyBtn.addEventListener('click', function() {
+            batchCopySelectedRows();
+        });
+
+        function updateChart() {
+            const chartCanvas = document.getElementById('chart');
+            const sortedCounts = Object.entries(pointCounts).sort((a, b) => b[1] - a[1]);
+
+            if (sortedCounts.length === 0) {
+                if (chartInstance) {
+                    chartInstance.destroy();
+                    chartInstance = null;
+                }
+                document.getElementById('minRangeValue').textContent = '0';
+                document.getElementById('maxRangeValue').textContent = '0';
+                document.getElementById('minRange').value = 0;
+                document.getElementById('maxRange').value = 0;
+                document.getElementById('minRange').max = 0;
+                document.getElementById('maxRange').max = 0;
+                return;
+            }
+
+            const labels = sortedCounts.map(([point, count]) => point);
+            const data = sortedCounts.map(([point, count]) => count);
+
+            const maxDataValue = Math.max(...data, 1);
+            const minDataValue = Math.min(...data, 0);
+
+            const maxInitialBars = 50;
+            let initialMinCount = minDataValue;
+
+            if (sortedCounts.length > maxInitialBars) {
+                initialMinCount = sortedCounts[maxInitialBars - 1][1];
+            }
+            initialMinCount = Math.min(initialMinCount, maxDataValue);
+
+            const minRangeInput = document.getElementById('minRange');
+            const maxRangeInput = document.getElementById('maxRange');
+
+            minRangeInput.max = maxDataValue;
+            maxRangeInput.max = maxDataValue;
+
+            minRangeInput.value = initialMinCount;
+            maxRangeInput.value = maxDataValue;
+
+            document.getElementById('minRangeValue').textContent = minRangeInput.value;
+            document.getElementById('maxRangeValue').textContent = maxRangeInput.value;
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const initialFilteredData = sortedCounts
+                .filter(([point, count]) => count >= initialMinCount && count <= maxDataValue)
+                .sort((a, b) => b[1] - a[1]);
+
+            const initialLabels = initialFilteredData.map(([point, count]) => point);
+            const initialData = initialFilteredData.map(([point, count]) => count);
+
+            chartInstance = new Chart(chartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: initialLabels,
+                    datasets: [{
+                        label: '计数',
+                        data: initialData,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            suggestedMax: maxDataValue + Math.ceil(maxDataValue * 0.1),
+                            ticks: {
+                                font: {
+                                    size: 16
+                                },
+                                stepSize: 1,
+                                callback: function (value) {
+                                    return Number.isInteger(value) ? value : null;
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                                lineWidth: 0.5
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: 16
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                                lineWidth: 0.5
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '考点分析图',
+                            font: {
+                                size: 36
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'end',
+                            formatter: (value) => value,
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    hover: {
+                        mode: 'nearest',
+                        intersect: true,
+                        animationDuration: 400
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+
+            minRangeInput.removeEventListener('input', filterChart);
+            maxRangeInput.removeEventListener('input', filterChart);
+            minRangeInput.addEventListener('input', filterChart);
+            maxRangeInput.addEventListener('input', filterChart);
+        }
+
+        function filterChart() {
+            const minRangeInput = document.getElementById('minRange');
+            const maxRangeInput = document.getElementById('maxRange');
+
+            let minRange = parseInt(minRangeInput.value, 10);
+            let maxRange = parseInt(maxRangeInput.value, 10);
+
+            if (minRange > maxRange) {
+                minRange = maxRange;
+                minRangeInput.value = minRange;
+            }
+
+            const filteredData = Object.entries(pointCounts)
+                .filter(([point, count]) => count >= minRange && count <= maxRange)
+                .sort((a, b) => b[1] - a[1]);
+
+            const labels = filteredData.map(([point, count]) => point);
+            const data = filteredData.map(([point, count]) => count);
+
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = data;
+                chartInstance.update();
+            }
+
+            document.getElementById('minRangeValue').textContent = minRange;
+            document.getElementById('maxRangeValue').textContent = maxRange;
+        }
+
+        function toggleSearchMode(mode) {
+            if (searchMode === mode) return;
+
+            if (searchMode && buttons[searchMode]) {
+                buttons[searchMode].classList.remove('selected');
+            }
+            searchMode = mode;
+            if (buttons[searchMode]) {
+                buttons[searchMode].classList.add('selected');
+            }
+            
+            const event = new Event('input', { bubbles: true });
+            searchInput.dispatchEvent(event);
+        }
+
+        showChartButton.addEventListener('click', () => {
+            overlay.style.display = 'block';
+            chartContainer.style.display = 'block';
+            updateChart();
+        });
+
+        closeChart.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            chartContainer.style.display = 'none';
+        });
+
+        chartContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            overlay.style.display = 'none';
+            chartContainer.style.display = 'none';
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            buttons = {
+                partialOr: document.getElementById('partialOrMatchButton'),
+                partialAnd: document.getElementById('partialAndMatchButton'),
+                exact: document.getElementById('exactMatchButton')
+            };
+
+            buttons.partialOr.classList.add('selected');
+        });
+
+        updateRowCount();
+        updateFileInfo();
+        updateBatchCopyButton();
+    </script>
+
+</body>
+
+</html>
